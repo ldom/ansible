@@ -61,11 +61,12 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import open_url
 import ansible.module_utils.six.moves.urllib.error as urllib_error
 
+
 def connector_exists(connect_url, name):
-    url = f"{connect_url}/{name}"
+    url = connect_url + '/' + name
     found = False
     try:
-        r = open_url(url)
+        open_url(url)
         found = True
     except urllib_error.HTTPError as e:
         if e.status != 404:
@@ -79,8 +80,8 @@ def install_new_connector(connect_url, name, config):
     return r.status == 200 or r.status == 201
 
 def update_existing_connector(connect_url, name, config):
-    url = f"{connect_url}/{name}/config"
-    restart_url = f"{connect_url}/{name}/restart"
+    url = "{}/{}/config".format(connect_url, name)
+    restart_url = "{}/{}/restart".format(connect_url, name)
 
     data = json.dumps(config)
     headers = {'Content-Type': 'application/json'}
@@ -90,7 +91,7 @@ def update_existing_connector(connect_url, name, config):
 
     r = open_url(method='POST', url=restart_url)
     if r.status not in (200, 204):
-        raise Exception(f"Connector {name} failed to restart after a configuration update. {r.msg}")
+        raise Exception("Connector {} failed to restart after a configuration update. {}".format(name, r.msg))
 
     return changed
 
