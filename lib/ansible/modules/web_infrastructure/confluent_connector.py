@@ -126,14 +126,14 @@ def run_module():
                 name=module.params['name'],
                 config=module.params['config']
             )
-            result['message'] = f"Connector {module.params['name']} updated."
+            result['message'] = "Connector {} updated.".format(module.params['name'])
         else:
             result['changed'] = install_new_connector(
                 connect_url=module.params['connect_url'],
                 name=module.params['name'],
                 config=module.params['config']
             )
-            result['message'] = f"New connector {module.params['name']} installed."
+            result['message'] = "New connector {} installed.".format(module.params['name'])
     except Exception as e:
         result['message'] = str(e)
         module.fail_json(msg='An error occurred while running the module', **result)
