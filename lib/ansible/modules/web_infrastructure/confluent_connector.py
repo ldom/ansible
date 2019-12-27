@@ -41,13 +41,11 @@ EXAMPLES = '''
 # Register a FileStreamSinkConnector
 - connect_url: {{kafka_connect_http_protocol}}://0.0.0.0:{{kafka_connect_rest_port}}/connectors
   name: local-file-sink
-  config: >
-    '{
-        "connector.class":"FileStreamSinkConnector",
-        "tasks.max":"1",
-        "file":"test.laurent.txt",
-        "topics":"test_laurent"
-    }'
+  config:
+    connector.class: "FileStreamSinkConnector"
+    tasks.max: 1
+    file: "test.3.txt"
+    topics: "test_laurent"
 '''
 
 RETURN = '''
