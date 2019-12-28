@@ -69,7 +69,7 @@ def connector_exists(connect_url, name):
         open_url(url)
         found = True
     except urllib_error.HTTPError as e:
-        if e.status != 404:
+        if e.code != 404:
             raise
     return found
 
