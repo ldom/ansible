@@ -77,7 +77,7 @@ def install_new_connector(connect_url, name, config):
     data = json.dumps({'name': name, 'config': config})
     headers = {'Content-Type': 'application/json'}
     r = open_url(method='POST', url=connect_url, data=data, headers=headers)
-    return r.status == 200 or r.status == 201
+    return r.getcode() in (200, 201)
 
 def update_existing_connector(connect_url, name, config):
     url = "{}/{}/config".format(connect_url, name)
@@ -87,10 +87,10 @@ def update_existing_connector(connect_url, name, config):
     headers = {'Content-Type': 'application/json'}
     r = open_url(method='PUT', url=url, data=data, headers=headers)
 
-    changed = r.status == 200 or r.status == 201
+    changed = r.getcode() in (200, 201)
 
     r = open_url(method='POST', url=restart_url)
-    if r.status not in (200, 204):
+    if r.getcode() not in (200, 204):
         raise Exception("Connector {} failed to restart after a configuration update. {}".format(name, r.msg))
 
     return changed
