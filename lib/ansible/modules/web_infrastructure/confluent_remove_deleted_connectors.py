@@ -26,7 +26,7 @@ options:
         required: true
     active_connectors:
         description:
-            - List of names of active/current connectors 
+            - Dict of active connectors (each connector object must have a 'name' field)  
         required: true
 
 author:
@@ -36,7 +36,7 @@ author:
 EXAMPLES = '''
 # Register a FileStreamSinkConnector
 - connect_url: {{kafka_connect_http_protocol}}://0.0.0.0:{{kafka_connect_rest_port}}/connectors
-  active_connectors: ["test-6-sink","test-5-sink"]
+  active_connectors: [{"name": "test-6-sink", "config": {}},{"name": "test-5-sink", "config": {}}]
 '''
 
 RETURN = '''
@@ -89,8 +89,9 @@ def run_module():
     #
     try:
         current_connectors = set(get_current_connectors(connect_url=module.params['connect_url']))
+        active_connectors = set([c['name'] for c in module.params['active_connectors']])
 
-        deleted_connectors = current_connectors - set(module.params['active_connectors'])
+        deleted_connectors = current_connectors - active_connectors
 
         for to_delete in deleted_connectors:
             remove_connector(connect_url=module.params['connect_url'], name=to_delete)
