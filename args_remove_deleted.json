@@ -1,0 +1,6 @@
+{
+    "ANSIBLE_MODULE_ARGS": {
+      "active_connectors": ["test-6-sink","test-5-sink"],
+      "connect_url": "http://34.217.65.126:8083/connectors"
+    }
+}
