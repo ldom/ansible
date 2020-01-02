@@ -10,27 +10,24 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = '''
 ---
-module: confluent_connector
+module: confluent_connectors
 
 short_description: This module allows setting up Confluent connectors from Ansible.
 
 version_added: "2.4"
 
 description:
-    - "This module allows setting up Confluent connectors from Ansible."
+    - "This module allows setting up Confluent connectors from Ansible. It registers the new ones, 
+    updates the existing ones and removes the deleted ones."
 
 options:
     connect_url:
         description:
             - URL of the Connect REST server to use to add/edit connectors
         required: true
-    name:
+    active_connectors:
         description:
-            - Name of the connector
-        required: true
-    config:
-        description:
-            - JSON configuration of the connector
+            - Dict of active connectors (each connector object must have a 'name' and a 'config' field)  
         required: true
 
 author:
@@ -38,19 +35,13 @@ author:
 '''
 
 EXAMPLES = '''
-# Register a FileStreamSinkConnector
 - connect_url: {{kafka_connect_http_protocol}}://0.0.0.0:{{kafka_connect_rest_port}}/connectors
-  name: local-file-sink
-  config:
-    connector.class: "FileStreamSinkConnector"
-    tasks.max: 1
-    file: "test.3.txt"
-    topics: "test_laurent"
+  active_connectors: [{"name": "test-6-sink", "config": { .../... }},{"name": "test-5-sink", "config": { .../... }}]
 '''
 
 RETURN = '''
 message:
-    description: The output message that the test module generates
+    description: The output message that the module generates
     type: str
     returned: always
 '''
@@ -62,16 +53,19 @@ from ansible.module_utils.urls import open_url
 import ansible.module_utils.six.moves.urllib.error as urllib_error
 
 
-def connector_exists(connect_url, name):
-    url = connect_url + '/' + name
-    found = False
+def get_current_connectors(connect_url):
     try:
-        open_url(url)
-        found = True
+        res = open_url(connect_url)
+        return json.loads(res.read())
     except urllib_error.HTTPError as e:
         if e.code != 404:
             raise
-    return found
+        return []
+
+def remove_connector(connect_url, name):
+    url = "{}/{}".format(connect_url, name)
+    r = open_url(method='DELETE', url=url)
+    return r.getcode() == 200
 
 def install_new_connector(connect_url, name, config):
     data = json.dumps({'name': name, 'config': config})
@@ -95,11 +89,11 @@ def update_existing_connector(connect_url, name, config):
 
     return changed
 
+
 def run_module():
     module_args = dict(
         connect_url=dict(type='str', required=True),
-        name=dict(type='str', required=True),
-        config=dict(type='dict', required=True),
+        active_connectors=dict(type='list', required=True),
     )
 
     result = dict(changed=False, message='')
@@ -110,30 +104,49 @@ def run_module():
         module.exit_json(**result)
 
     #
-    # module action: update the connector if it already exists, otherwise create a new one
+    # module action:
+    # - make a diff of existing (current) vs kept (active) connectors and removes the un-kept ones
+    # - update the connector if it already exists, otherwise create a new one
     #
     # note: using the logic below because PUT /connectors/<name>/config has proven to be unreliable
     # when the connector doesn't exist
     #
     result['changed'] = False
+    output_messages = []
     try:
-        if connector_exists(
-                connect_url=module.params['connect_url'],
-                name=module.params['name']
-        ):
-            result['changed'] = update_existing_connector(
-                connect_url=module.params['connect_url'],
-                name=module.params['name'],
-                config=module.params['config']
-            )
-            result['message'] = "Connector {} updated.".format(module.params['name'])
-        else:
-            result['changed'] = install_new_connector(
-                connect_url=module.params['connect_url'],
-                name=module.params['name'],
-                config=module.params['config']
-            )
-            result['message'] = "New connector {} installed.".format(module.params['name'])
+        current_connector_names = get_current_connectors(connect_url=module.params['connect_url'])
+        active_connector_names = [c['name'] for c in module.params['active_connectors']]
+        deleted_connector_names = set(current_connector_names) - set(active_connector_names)
+
+        for to_delete in deleted_connector_names:
+            remove_connector(connect_url=module.params['connect_url'], name=to_delete)
+
+        if deleted_connector_names:
+            output_messages.append("Connectors removed: {}.".format(', '.join(deleted_connector_names)))
+
+        active_connectors = module.params['active_connectors']
+
+        for connector in active_connectors:
+            try:
+                _ = current_connector_names.index(connector['name'])
+
+                result['changed'] = update_existing_connector(
+                    connect_url=module.params['connect_url'],
+                    name=connector['name'],
+                    config=connector['config']
+                )
+                output_messages.append("Connector {} updated.".format(connector['name']))
+
+            except ValueError:
+                result['changed'] = install_new_connector(
+                    connect_url=module.params['connect_url'],
+                    name=connector['name'],
+                    config=connector['config']
+                )
+                output_messages.append("New connector {} installed.".format(connector['name']))
+
+        result['message'] = " ".join(output_messages)
+
     except Exception as e:
         result['message'] = str(e)
         module.fail_json(msg='An error occurred while running the module', **result)
